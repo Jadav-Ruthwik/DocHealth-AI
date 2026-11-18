@@ -158,6 +158,9 @@ async def upload_report(
         extracted_text, ocr_used = extract_text_with_ocr(
             content
         )
+        print("\n========== OCR EXTRACTED TEXT ==========")
+        print(extracted_text)
+        print("========== END OCR TEXT ==========\n")
 
     except Exception as error:
         print("Text extraction error:", repr(error))
