@@ -15,6 +15,7 @@ export default function ReportUpload({ onReportUploaded }) {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [refreshWarning, setRefreshWarning] = useState("");
   const [reportData, setReportData] = useState(null);
 
   const handleUpload = async () => {
@@ -25,28 +26,38 @@ export default function ReportUpload({ onReportUploaded }) {
 
     setLoading(true);
     setError("");
+    setRefreshWarning("");
     setReportData(null);
 
     const formData = new FormData();
     formData.append("file", file);
 
     try {
+      // Step 1: Upload and process the report
       const response = await api.post("/api/reports/upload", formData);
 
-      // Display newly processed report
+      // A successful HTTP response means upload succeeded
       setReportData(response.data);
       setFile(null);
 
-      // Refresh dashboard statistics and report history
+      // Step 2: Refresh dashboard separately
       if (onReportUploaded) {
-        await onReportUploaded();
+        try {
+          await onReportUploaded();
+        } catch (refreshError) {
+          console.error("Dashboard refresh error:", refreshError);
+          setRefreshWarning(
+            "Report saved successfully, but the dashboard could not refresh. Please reload the page.",
+          );
+        }
       }
     } catch (err) {
       console.error("Upload error:", err);
 
       setError(
         err.response?.data?.detail ||
-          "Unable to process the report. Please try again.",
+          err.message ||
+          "Unable to upload the report. Please try again.",
       );
     } finally {
       setLoading(false);
@@ -55,7 +66,6 @@ export default function ReportUpload({ onReportUploaded }) {
 
   return (
     <div className="space-y-8">
-      {/* Upload Card */}
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-5 flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
@@ -66,14 +76,12 @@ export default function ReportUpload({ onReportUploaded }) {
             <h2 className="text-lg font-bold text-slate-900">
               Upload Medical Report
             </h2>
-
             <p className="text-sm text-slate-500">
               Upload a PDF to extract medical test results.
             </p>
           </div>
         </div>
 
-        {/* File Selection */}
         <label className="block cursor-pointer rounded-xl border-2 border-dashed border-slate-300 p-8 text-center transition hover:border-blue-500 hover:bg-blue-50/30">
           <FileText className="mx-auto mb-3 text-blue-500" size={35} />
 
@@ -93,6 +101,7 @@ export default function ReportUpload({ onReportUploaded }) {
               const selected = e.target.files?.[0];
 
               setError("");
+              setRefreshWarning("");
               setReportData(null);
 
               if (!selected) {
@@ -120,7 +129,6 @@ export default function ReportUpload({ onReportUploaded }) {
           />
         </label>
 
-        {/* Error */}
         {error && (
           <div className="mt-4 flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-600">
             <AlertCircle size={18} />
@@ -128,7 +136,6 @@ export default function ReportUpload({ onReportUploaded }) {
           </div>
         )}
 
-        {/* Success */}
         {reportData && (
           <div className="mt-4 flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">
             <CheckCircle size={18} />
@@ -136,7 +143,13 @@ export default function ReportUpload({ onReportUploaded }) {
           </div>
         )}
 
-        {/* Upload Button */}
+        {refreshWarning && (
+          <div className="mt-4 flex items-center gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-700">
+            <AlertCircle size={18} />
+            {refreshWarning}
+          </div>
+        )}
+
         <button
           onClick={handleUpload}
           disabled={!file || loading}
@@ -156,7 +169,6 @@ export default function ReportUpload({ onReportUploaded }) {
         </button>
       </div>
 
-      {/* Medical Analysis */}
       {reportData && <MedicalResults data={reportData} />}
     </div>
   );
