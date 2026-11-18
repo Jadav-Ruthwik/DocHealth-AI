@@ -1,34 +1,33 @@
 
+import os
 import shutil
+from io import BytesIO
 
 import pymupdf
 import pytesseract
-
 from PIL import Image
-from io import BytesIO
 
 
-# Configure Tesseract for Windows
+# Use the Tesseract executable available in the current environment.
 TESSERACT_PATH = shutil.which("tesseract")
 
-if not TESSERACT_PATH:
-    TESSERACT_PATH = (
+# Windows fallback for local development.
+if not TESSERACT_PATH and os.name == "nt":
+    WINDOWS_TESSERACT = (
         r"C:\Program Files\Tesseract-OCR\tesseract.exe"
     )
 
-pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
+    if os.path.exists(WINDOWS_TESSERACT):
+        TESSERACT_PATH = WINDOWS_TESSERACT
+
+if TESSERACT_PATH:
+    pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
 
 
 def extract_text_with_ocr(pdf_content):
     """
-    Extract text from a PDF.
-
-    Uses normal PDF text extraction when available.
-    Uses Tesseract OCR for pages with little or no text.
-
-    Returns:
-        extracted_text: Combined text from all pages.
-        ocr_used: Whether OCR was used on any page.
+    Extract text from PDF pages.
+    Uses Tesseract OCR when a page contains very little text.
     """
 
     extracted_pages = []
@@ -42,10 +41,8 @@ def extract_text_with_ocr(pdf_content):
 
             for page_number, page in enumerate(document):
 
-                # First attempt normal text extraction
                 page_text = page.get_text("text").strip()
 
-                # If the page has very little text, use OCR
                 if len(page_text) < 30:
 
                     print(
@@ -59,10 +56,7 @@ def extract_text_with_ocr(pdf_content):
                     )
 
                     image_bytes = pixmap.tobytes("png")
-
-                    image = Image.open(
-                        BytesIO(image_bytes)
-                    )
+                    image = Image.open(BytesIO(image_bytes))
 
                     page_text = pytesseract.image_to_string(
                         image,
