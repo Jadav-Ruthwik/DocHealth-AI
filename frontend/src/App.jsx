@@ -41,7 +41,10 @@ function App() {
   const [deleteError, setDeleteError] = useState("");
   const [deleteSuccess, setDeleteSuccess] = useState("");
 
-  // Fetch saved reports from SQLite
+  // Hide dashboard while a report is opening or displayed
+  const isReportView = Boolean(selectedReport) || detailLoading;
+
+  // Fetch saved reports
   const loadReports = useCallback(async () => {
     try {
       setReportsError("");
@@ -58,7 +61,7 @@ function App() {
     }
   }, []);
 
-  // Load reports when dashboard opens
+  // Load reports when application opens
   useEffect(() => {
     loadReports();
   }, [loadReports]);
@@ -86,6 +89,17 @@ function App() {
     }
   };
 
+  // Return to dashboard
+  const backToDashboard = () => {
+    setSelectedReport(null);
+    setDetailLoading(false);
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+
   // Delete a saved medical report
   const deleteReport = async (reportId) => {
     const confirmed = window.confirm(
@@ -101,12 +115,12 @@ function App() {
     try {
       await api.delete(`/api/reports/${reportId}`);
 
-      // Close report details if the deleted report was open
+      // Close details if the deleted report is currently open
       if (selectedReport?.id === reportId) {
         setSelectedReport(null);
       }
 
-      // Refresh dashboard and report history
+      // Refresh report history
       await loadReports();
 
       setDeleteSuccess("Medical report deleted successfully.");
@@ -254,288 +268,296 @@ function App() {
           </div>
         </header>
 
-        {/* Dashboard Container */}
+        {/* Main Container */}
         <div className="mx-auto max-w-[1600px] space-y-8 p-5 md:p-8">
-          {/* ================= PAGE HEADING ================= */}
+          {/* ================= DASHBOARD HEADING ================= */}
 
-          <section>
-            <p className="text-sm font-medium text-blue-600">Overview</p>
+          {!isReportView && (
+            <>
+              <section>
+                <p className="text-sm font-medium text-blue-600">Overview</p>
 
-            <h2 className="mt-1 text-3xl font-bold tracking-tight text-slate-900">
-              Dashboard
-            </h2>
+                <h2 className="mt-1 text-3xl font-bold tracking-tight text-slate-900">
+                  Dashboard
+                </h2>
 
-            <p className="mt-2 text-sm text-slate-500">
-              Welcome back! Here's your health overview.
-            </p>
-          </section>
+                <p className="mt-2 text-sm text-slate-500">
+                  Welcome back! Here's your health overview.
+                </p>
+              </section>
 
-          {/* ================= STATISTICS ================= */}
+              {/* ================= STATISTICS ================= */}
 
-          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {stats.map((item) => {
-              const Icon = item.icon;
+              <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {stats.map((item) => {
+                  const Icon = item.icon;
 
-              const iconColors = {
-                blue: "bg-blue-50 text-blue-600",
-                purple: "bg-purple-50 text-purple-600",
-                green: "bg-emerald-50 text-emerald-600",
-                orange: "bg-orange-50 text-orange-600",
-              };
+                  const iconColors = {
+                    blue: "bg-blue-50 text-blue-600",
+                    purple: "bg-purple-50 text-purple-600",
+                    green: "bg-emerald-50 text-emerald-600",
+                    orange: "bg-orange-50 text-orange-600",
+                  };
 
-              return (
-                <div
-                  key={item.title}
-                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-slate-500">
-                      {item.title}
-                    </p>
-
+                  return (
                     <div
-                      className={`rounded-xl p-2.5 ${iconColors[item.color]}`}
+                      key={item.title}
+                      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                     >
-                      <Icon size={20} />
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-slate-500">
+                          {item.title}
+                        </p>
+
+                        <div
+                          className={`rounded-xl p-2.5 ${iconColors[item.color]}`}
+                        >
+                          <Icon size={20} />
+                        </div>
+                      </div>
+
+                      <h3 className="mt-4 text-3xl font-bold tracking-tight text-slate-900">
+                        {item.value}
+                      </h3>
+
+                      <p className="mt-1 text-xs text-slate-400">
+                        {item.description}
+                      </p>
                     </div>
-                  </div>
+                  );
+                })}
+              </section>
+            </>
+          )}
 
-                  <h3 className="mt-4 text-3xl font-bold tracking-tight text-slate-900">
-                    {item.value}
-                  </h3>
-
-                  <p className="mt-1 text-xs text-slate-400">
-                    {item.description}
-                  </p>
-                </div>
-              );
-            })}
-          </section>
-
-          {/* ================= SAVED REPORT DETAILS ================= */}
+          {/* ================= REPORT DETAILS ================= */}
 
           {selectedReport && (
             <section className="space-y-5">
-              <button
-                onClick={() => setSelectedReport(null)}
-                className="flex items-center gap-2 text-sm font-semibold text-blue-600 transition hover:text-blue-700"
-              >
-                <ArrowLeft size={17} />
-                Back to dashboard
-              </button>
+              <div>
+                <button
+                  onClick={backToDashboard}
+                  className="flex items-center gap-2 text-sm font-semibold text-blue-600 transition hover:text-blue-700"
+                >
+                  <ArrowLeft size={17} />
+                  Back to Dashboard
+                </button>
+              </div>
 
               <MedicalResults data={selectedReport} />
             </section>
           )}
 
-          {/* Loading Report Details */}
+          {/* ================= REPORT LOADING ================= */}
+
           {detailLoading && (
-            <div className="flex items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white p-10 text-sm text-slate-500">
-              <Loader2 className="animate-spin" size={20} />
+            <div className="flex min-h-[300px] flex-col items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white p-10 text-sm text-slate-500">
+              <Loader2 className="animate-spin text-blue-600" size={28} />
               Loading saved report...
             </div>
           )}
 
           {/* ================= REPORT UPLOAD ================= */}
 
-          {!selectedReport && (
-            <section className="space-y-6">
-              <div>
-                <h3 className="text-xl font-bold text-slate-900">
-                  Medical Report Center
-                </h3>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Upload, extract and review your medical test results.
-                </p>
-              </div>
-
-              <div className="min-w-0">
-                <ReportUpload onReportUploaded={loadReports} />
-              </div>
-            </section>
-          )}
-
-          {/* ================= RECENT REPORTS ================= */}
-
-          {!selectedReport && (
-            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              {/* Section Header */}
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-6 py-5">
+          {!isReportView && (
+            <>
+              <section className="space-y-6">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">
-                    Recent Medical Reports
+                  <h3 className="text-xl font-bold text-slate-900">
+                    Medical Report Center
                   </h3>
 
                   <p className="mt-1 text-sm text-slate-500">
-                    Saved documents from your database
+                    Upload, extract and review your medical test results.
                   </p>
                 </div>
 
-                <button
-                  onClick={loadReports}
-                  disabled={reportsLoading}
-                  className="flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-50"
-                >
-                  <RefreshCw
-                    size={15}
-                    className={reportsLoading ? "animate-spin" : ""}
-                  />
-                  Refresh
-                </button>
-              </div>
-
-              {/* Delete Success */}
-              {deleteSuccess && (
-                <div className="mx-6 mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">
-                  {deleteSuccess}
+                <div className="min-w-0">
+                  <ReportUpload onReportUploaded={loadReports} />
                 </div>
-              )}
+              </section>
 
-              {/* Delete Error */}
-              {deleteError && (
-                <div className="mx-6 mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">
-                  {deleteError}
-                </div>
-              )}
+              {/* ================= RECENT REPORTS ================= */}
 
-              {/* Loading */}
-              {reportsLoading ? (
-                <div className="p-10 text-center text-sm text-slate-500">
-                  <Loader2 className="mx-auto mb-3 animate-spin" size={22} />
-                  Loading saved reports...
-                </div>
-              ) : reportsError ? (
-                <div className="p-10 text-center text-sm text-red-600">
-                  {reportsError}
+              <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                {/* Section Header */}
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-6 py-5">
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900">
+                      Recent Medical Reports
+                    </h3>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      Saved documents from your database
+                    </p>
+                  </div>
 
                   <button
                     onClick={loadReports}
-                    className="ml-2 font-semibold underline"
+                    disabled={reportsLoading}
+                    className="flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-50"
                   >
-                    Retry
+                    <RefreshCw
+                      size={15}
+                      className={reportsLoading ? "animate-spin" : ""}
+                    />
+                    Refresh
                   </button>
                 </div>
-              ) : reports.length === 0 ? (
-                <div className="p-10 text-center">
-                  <FileText className="mx-auto mb-3 text-slate-300" size={36} />
 
-                  <p className="font-semibold text-slate-700">
-                    No medical reports yet
-                  </p>
+                {/* Delete Success */}
+                {deleteSuccess && (
+                  <div className="mx-6 mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">
+                    {deleteSuccess}
+                  </div>
+                )}
 
-                  <p className="mt-1 text-sm text-slate-500">
-                    Upload a PDF to create your first report.
-                  </p>
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {reports.map((report) => (
-                    <div
-                      key={report.id}
-                      className="flex flex-wrap items-center justify-between gap-4 px-6 py-5 transition hover:bg-slate-50"
+                {/* Delete Error */}
+                {deleteError && (
+                  <div className="mx-6 mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">
+                    {deleteError}
+                  </div>
+                )}
+
+                {/* Loading / Error / Empty / Reports */}
+                {reportsLoading ? (
+                  <div className="p-10 text-center text-sm text-slate-500">
+                    <Loader2 className="mx-auto mb-3 animate-spin" size={22} />
+                    Loading saved reports...
+                  </div>
+                ) : reportsError ? (
+                  <div className="p-10 text-center text-sm text-red-600">
+                    {reportsError}
+
+                    <button
+                      onClick={loadReports}
+                      className="ml-2 font-semibold underline"
                     >
-                      {/* Report Details */}
-                      <button
-                        onClick={() => openReport(report.id)}
-                        className="flex min-w-0 flex-1 items-center gap-4 text-left"
+                      Retry
+                    </button>
+                  </div>
+                ) : reports.length === 0 ? (
+                  <div className="p-10 text-center">
+                    <FileText
+                      className="mx-auto mb-3 text-slate-300"
+                      size={36}
+                    />
+
+                    <p className="font-semibold text-slate-700">
+                      No medical reports yet
+                    </p>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      Upload a PDF to create your first report.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {reports.map((report) => (
+                      <div
+                        key={report.id}
+                        className="flex flex-wrap items-center justify-between gap-4 px-6 py-5 transition hover:bg-slate-50"
                       >
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                          <FileText size={21} />
-                        </div>
-
-                        <div className="min-w-0">
-                          <h4 className="truncate text-sm font-semibold text-slate-800">
-                            {report.filename}
-                          </h4>
-
-                          <p className="mt-1 text-xs text-slate-400">
-                            {new Date(report.created_at).toLocaleString()}
-                            {" · "}
-                            {report.total_pages} page(s)
-                            {" · "}
-                            {report.total_tests_extracted} tests
-                          </p>
-                        </div>
-                      </button>
-
-                      {/* Report Actions */}
-                      <div className="flex shrink-0 items-center gap-3">
-                        <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
-                          Saved
-                        </span>
-
-                        {/* Delete Button */}
-                        <button
-                          onClick={() => deleteReport(report.id)}
-                          disabled={deletingId === report.id}
-                          aria-label={`Delete ${report.filename}`}
-                          title="Delete report"
-                          className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-100 text-red-500 transition hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {deletingId === report.id ? (
-                            <Loader2 size={17} className="animate-spin" />
-                          ) : (
-                            <Trash2 size={17} />
-                          )}
-                        </button>
-
-                        {/* Open Report */}
+                        {/* Report Details */}
                         <button
                           onClick={() => openReport(report.id)}
-                          aria-label="Open report"
-                          title="Open report"
-                          className="text-slate-400 transition hover:text-blue-600"
+                          className="flex min-w-0 flex-1 items-center gap-4 text-left"
                         >
-                          <ChevronRight size={18} />
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                            <FileText size={21} />
+                          </div>
+
+                          <div className="min-w-0">
+                            <h4 className="truncate text-sm font-semibold text-slate-800">
+                              {report.filename}
+                            </h4>
+
+                            <p className="mt-1 text-xs text-slate-400">
+                              {new Date(report.created_at).toLocaleString()}
+                              {" · "}
+                              {report.total_pages} page(s)
+                              {" · "}
+                              {report.total_tests_extracted} tests
+                            </p>
+                          </div>
                         </button>
+
+                        {/* Report Actions */}
+                        <div className="flex shrink-0 items-center gap-3">
+                          <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
+                            Saved
+                          </span>
+
+                          {/* Delete */}
+                          <button
+                            onClick={() => deleteReport(report.id)}
+                            disabled={deletingId === report.id}
+                            aria-label={`Delete ${report.filename}`}
+                            title="Delete report"
+                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-100 text-red-500 transition hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {deletingId === report.id ? (
+                              <Loader2 size={17} className="animate-spin" />
+                            ) : (
+                              <Trash2 size={17} />
+                            )}
+                          </button>
+
+                          {/* Open Report */}
+                          <button
+                            onClick={() => openReport(report.id)}
+                            aria-label={`Open ${report.filename}`}
+                            title="Open report"
+                            className="text-slate-400 transition hover:text-blue-600"
+                          >
+                            <ChevronRight size={18} />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* ================= AI ASSISTANT ================= */}
+
+              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
+                    <MessageSquare size={23} />
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900">
+                      DocHealth AI Assistant
+                    </h3>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      Ask questions about your uploaded medical reports.
+                    </p>
+                  </div>
                 </div>
-              )}
-            </section>
-          )}
 
-          {/* ================= AI ASSISTANT ================= */}
+                <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                  <input
+                    disabled
+                    placeholder="AI assistant will be available in a future milestone..."
+                    className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+                  />
 
-          {!selectedReport && (
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
-                  <MessageSquare size={23} />
+                  <button
+                    disabled
+                    className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white opacity-50"
+                  >
+                    Ask AI
+                  </button>
                 </div>
 
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">
-                    DocHealth AI Assistant
-                  </h3>
-
-                  <p className="mt-1 text-sm text-slate-500">
-                    Ask questions about your uploaded medical reports.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-                <input
-                  disabled
-                  placeholder="AI assistant will be available in a future milestone..."
-                  className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
-                />
-
-                <button
-                  disabled
-                  className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white opacity-50"
-                >
-                  Ask AI
-                </button>
-              </div>
-
-              <p className="mt-3 text-xs text-slate-400">
-                AI assistant functionality is not connected yet.
-              </p>
-            </section>
+                <p className="mt-3 text-xs text-slate-400">
+                  AI assistant functionality is not connected yet.
+                </p>
+              </section>
+            </>
           )}
 
           {/* ================= FOOTER ================= */}
