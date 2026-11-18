@@ -1,13 +1,11 @@
 
 import re
 
-# Supports decimal and integer values
 NUMBER = r"\d+(?:\.\d+)?"
 
-# Flexible whitespace between OCR-extracted columns
-SPACE = r"[ \t]+"
+# Flexible numeric ranges, including OCR output without spaces
+RANGE = rf"(?P<low>{NUMBER})\s*[-–—]\s*(?P<high>{NUMBER})"
 
-# Test names and their common report variations
 TEST_PATTERNS = [
     {
         "name": "Hemoglobin",
@@ -22,17 +20,21 @@ TEST_PATTERNS = [
             r"WBC\s+Count",
             r"WBC",
         ],
-        "unit": r"(?:10\s*\^?\s*3\s*/\s*(?:uL|µL|μL)|K\s*/\s*uL)",
+        "unit": r"(?:10\s*[\*\^]?\s*3\s*/\s*(?:uL|µL|μL)|K\s*/\s*uL)",
     },
     {
         "name": "Platelet Count",
         "aliases": [r"Platelet\s+Count", r"Platelets", r"PLT"],
-        "unit": r"(?:10\s*\^?\s*3\s*/\s*(?:uL|µL|μL)|K\s*/\s*uL)",
+        "unit": r"(?:10\s*[\*\^]?\s*3\s*/\s*(?:uL|µL|μL)|K\s*/\s*uL)",
     },
     {
         "name": "RBC Count",
-        "aliases": [r"RBC\s+Count", r"Red\s+Blood\s+Cell\s+Count", r"RBC"],
-        "unit": r"(?:10\s*\^?\s*6\s*/\s*(?:uL|µL|μL)|M\s*/\s*uL)",
+        "aliases": [
+            r"RBC\s+Count",
+            r"Red\s+Blood\s+Cell\s+Count",
+            r"RBC",
+        ],
+        "unit": r"(?:10\s*[\*\^]?\s*6\s*/\s*(?:uL|µL|μL)|M\s*/\s*uL)",
     },
     {
         "name": "Hematocrit",
@@ -51,7 +53,10 @@ TEST_PATTERNS = [
     },
     {
         "name": "Fasting Glucose",
-        "aliases": [r"Fasting\s+Glucose", r"Fasting\s+Blood\s+Sugar"],
+        "aliases": [
+            r"Fasting\s+Glucose",
+            r"Fasting\s+Blood\s+Sugar",
+        ],
         "unit": r"mg\s*/\s*dL",
     },
     {
@@ -92,7 +97,7 @@ TEST_PATTERNS = [
     {
         "name": "TSH",
         "aliases": [r"TSH", r"Thyroid\s+Stimulating\s+Hormone"],
-        "unit": r"(?:µIU\s*/\s*mL|μIU\s*/\s*mL|uIU\s*/\s*mL)",
+        "unit": r"(?:µIU|μIU|uIU)\s*/\s*mL",
     },
     {
         "name": "Free T4",
@@ -103,36 +108,30 @@ TEST_PATTERNS = [
 
 
 def normalize_text(text: str) -> str:
-    """Normalize common OCR characters and spacing."""
+    """Normalize common OCR formatting variations."""
 
-    text = text.replace("\u00a0", " ")
-    text = text.replace("−", "-")
-    text = text.replace("–", "-")
-    text = text.replace("—", "-")
-    text = text.replace("μ", "µ")
+    replacements = {
+        "\u00a0": " ",
+        "−": "-",
+        "–": "-",
+        "—": "-",
+        "μ": "µ",
+    }
+
+    for old, new in replacements.items():
+        text = text.replace(old, new)
 
     return text
 
 
 def extract_medical_results(text: str):
-    """
-    Extract test values and reference ranges from report text.
-
-    Supports:
-    - Numeric reference ranges: 12.0 - 16.0
-    - Upper limits: Below 200
-    - Lower limits: Above 40
-
-    Only values with a recognized reference range are returned.
-    """
+    """Extract supported medical values and stated reference limits."""
 
     if not text:
         return []
 
     text = normalize_text(text)
 
-    # Process each OCR line separately to avoid joining
-    # values from different test rows.
     lines = [
         re.sub(r"\s+", " ", line).strip()
         for line in text.splitlines()
@@ -150,26 +149,24 @@ def extract_medical_results(text: str):
 
         pattern = re.compile(
             rf"(?<![A-Za-z])(?:{aliases})(?![A-Za-z])"
-            rf"{SPACE}"
+            rf"\s+"
             rf"(?P<value>{NUMBER})"
-            rf"{SPACE}"
+            rf"\s*"
             rf"(?P<unit>{test['unit']})"
-            rf"{SPACE}"
-            rf"(?:(?P<low>{NUMBER})"
-            rf"{SPACE}[-/]{SPACE}"
-            rf"(?P<high>{NUMBER})"
-            rf"|Below{SPACE}(?P<below>{NUMBER})"
-            rf"|Above{SPACE}(?P<above>{NUMBER}))",
+            rf"\s*"
+            rf"(?:{RANGE}"
+            rf"|Below\s+(?P<below>{NUMBER})"
+            rf"|Above\s+(?P<above>{NUMBER}))",
             re.IGNORECASE,
         )
 
         for line in lines:
+
             match = pattern.search(line)
 
             if not match:
                 continue
 
-            # Avoid duplicate extraction
             if test["name"] in extracted_names:
                 break
 
@@ -193,27 +190,32 @@ def extract_medical_results(text: str):
                     lower = None
                     upper = float(groups["below"])
 
-                    if value > upper:
-                        status = "Above reference range"
-                    else:
-                        status = "Within stated limit"
+                    status = (
+                        "Above reference range"
+                        if value > upper
+                        else "Within stated limit"
+                    )
 
                 elif groups["above"] is not None:
                     lower = float(groups["above"])
                     upper = None
 
-                    if value < lower:
-                        status = "Below reference range"
-                    else:
-                        status = "Within stated limit"
+                    status = (
+                        "Below reference range"
+                        if value < lower
+                        else "Within stated limit"
+                    )
 
                 else:
                     continue
 
+                unit = re.sub(r"\s+", "", groups["unit"])
+
+                # Normalize OCR unit notation for display
                 unit = re.sub(
-                    r"\s+",
-                    "",
-                    groups["unit"]
+                    r"10[\*\^]?(\d+)/",
+                    r"10^\1/",
+                    unit
                 )
 
                 results.append({
